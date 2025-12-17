@@ -1,0 +1,23 @@
+{
+  "name": "bombachlat",
+  "version": "1.0.0",
+  "description": "PDF to Excel converter implemented in Node.js",
+  "main": "index.js",
+  "scripts": {
+    "convert": "node convert-pdf-to-excel.js",
+    "test": "echo \"No automated tests configured\""
+  },
+  "keywords": [
+    "pdf",
+    "excel",
+    "converter"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "pdfjs-dist": "^4.7.76",
+    "yargs": "^17.7.2"
+  }
+}
