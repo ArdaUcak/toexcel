@@ -9,6 +9,19 @@ This repository provides tools to convert PDF files to Excel workbooks while kee
 
 _All processing stays in your browser—no uploads or servers required._
 
+### Structured maintenance sheet output
+If your PDF matches the maintenance log layout shown below (lines that start with values such as `S49 | 41043142 | AMC | ...`
+followed by a second line of details), the converter will automatically map each entry into columns similar to the provided
+sample Excel screenshot:
+
+- `S.NO` (auto-generated row number)
+- `HAFTA` (week, e.g., `S49`)
+- `İŞ EMRİ NO`, `TİP`, `NO`
+- `TANIM` (description plus any follow-up code)
+- `ÖNCELİK DURUMU` (combined priority/status values)
+- `TARİH` (normalized as `dd.MM.[yyyy]` when a year is present in the PDF header)
+- `SÜRE` (time values like `0h10` normalized to `0:10`)
+
 ## Node.js CLI
 If you prefer running the converter in Node.js, use the CLI script.
 
