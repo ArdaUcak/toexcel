@@ -4,9 +4,17 @@ const path = require('path');
 const { hideBin } = require('yargs/helpers');
 const yargs = require('yargs/yargs');
 const ExcelJS = require('exceljs');
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = require('pdfjs-dist/build/pdf.worker.js');
+let pdfjsLibPromise;
+
+async function getPdfJs() {
+  if (!pdfjsLibPromise) {
+    pdfjsLibPromise = import('pdfjs-dist/legacy/build/pdf.mjs');
+  }
+
+  const pdfjsLib = await pdfjsLibPromise;
+  return pdfjsLib;
+}
 
 const LINE_HEIGHT_THRESHOLD = 3;
 const SPACE_SCALING = 1.5;
@@ -78,6 +86,7 @@ function groupItemsIntoLines(textItems) {
 }
 
 async function extractPages(pdfPath) {
+  const pdfjsLib = await getPdfJs();
   const data = new Uint8Array(fs.readFileSync(pdfPath));
   const pdf = await pdfjsLib.getDocument({ data }).promise;
   const pages = [];

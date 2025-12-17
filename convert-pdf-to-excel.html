@@ -79,10 +79,8 @@
     </ol>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
-  <script>
+  <script type="module">
     const LINE_HEIGHT_THRESHOLD = 3;
     const SPACE_SCALING = 1.5;
 
@@ -90,7 +88,16 @@
     const pdfInput = document.getElementById('pdfFile');
     const convertBtn = document.getElementById('convertBtn');
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js';
+    let pdfjsLib;
+
+    async function loadPdfJs() {
+      if (pdfjsLib) return pdfjsLib;
+      const pdfModule = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.mjs');
+      pdfjsLib = pdfModule;
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.js';
+      return pdfjsLib;
+    }
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
@@ -139,7 +146,8 @@
     }
 
     async function extractPages(arrayBuffer) {
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pdfjs = await loadPdfJs();
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
       const pages = [];
 
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
