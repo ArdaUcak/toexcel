@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF to Excel Converter</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    body {
+      max-width: 900px;
+      margin: 1.5rem auto;
+      padding: 0 1rem 2rem;
+      line-height: 1.5;
+    }
+    h1 {
+      margin-bottom: 0.25rem;
+    }
+    .panel {
+      border: 1px solid #888;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+    input[type="file"],
+    button {
+      margin-top: 0.5rem;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .status {
+      margin-top: 0.75rem;
+      font-size: 0.95rem;
+      color: #0a7b1f;
+    }
+    .error {
+      color: #c02f1d;
+    }
+    ol {
+      padding-left: 1.1rem;
+    }
+    code {
+      padding: 0.12rem 0.35rem;
+      border-radius: 6px;
+      background: rgba(128, 128, 128, 0.2);
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>PDF to Excel (Browser)</h1>
+  <p>Convert a PDF to an Excel workbook directly in your browser. Each PDF page becomes a worksheet, and text alignment is preserved using a monospace column.</p>
+
+  <div class="panel">
+    <label for="pdfFile">Select a PDF file</label>
+    <input type="file" id="pdfFile" accept="application/pdf" />
+    <button id="convertBtn" type="button">Convert to Excel</button>
+    <div id="status" class="status" aria-live="polite"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Notes</h2>
+    <ol>
+      <li>Processing happens entirely in your browser—no files are uploaded.</li>
+      <li>If your PDF is large, the conversion may take a few seconds.</li>
+      <li>The output uses a single, wide monospace column per page to maintain spacing.</li>
+    </ol>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script type="module">
+    const LINE_HEIGHT_THRESHOLD = 3;
+    const SPACE_SCALING = 1.5;
+
+    const statusEl = document.getElementById('status');
+    const pdfInput = document.getElementById('pdfFile');
+    const convertBtn = document.getElementById('convertBtn');
+
+    let pdfjsLib;
+
+    async function loadPdfJs() {
+      if (pdfjsLib) return pdfjsLib;
+      const pdfModule = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.mjs');
+      pdfjsLib = pdfModule;
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.mjs';
+      return pdfjsLib;
+    }
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle('error', isError);
+    }
+
+    function groupItemsIntoLines(textItems) {
+      const sorted = textItems
+        .map((item) => ({
+          text: item.str,
+          x: item.transform[4],
+          y: item.transform[5],
+          width: item.width,
+        }))
+        .sort((a, b) => b.y - a.y || a.x - b.x);
+
+      const lines = [];
+      sorted.forEach((item) => {
+        const existingLine = lines.find((line) => Math.abs(line.y - item.y) < LINE_HEIGHT_THRESHOLD);
+        if (existingLine) {
+          existingLine.items.push(item);
+          existingLine.y = (existingLine.y * existingLine.items.length + item.y) / (existingLine.items.length + 1);
+        } else {
+          lines.push({ y: item.y, items: [item] });
+        }
+      });
+
+      return lines
+        .sort((a, b) => b.y - a.y)
+        .map((line) => {
+          const ordered = line.items.sort((a, b) => a.x - b.x);
+          let assembled = '';
+          for (let i = 0; i < ordered.length; i += 1) {
+            const current = ordered[i];
+            if (i === 0) {
+              assembled += current.text;
+              continue;
+            }
+            const prev = ordered[i - 1];
+            const gap = current.x - (prev.x + prev.width);
+            const spaces = gap > 0 ? Math.round((gap / prev.width) * SPACE_SCALING) : 0;
+            assembled += ' '.repeat(Math.max(0, spaces)) + current.text;
+          }
+          return assembled.trimEnd();
+        });
+    }
+
+    function parsePeriodYear(lines) {
+      const periodLine = lines.find((line) => /Periyod\s*:\s*\d{2}\/\d{2}\/\d{2}/i.test(line));
+      if (!periodLine) return undefined;
+      const match = periodLine.match(/Periyod\s*:\s*\d{2}\/\d{2}\/(\d{2})/i);
+      if (!match) return undefined;
+      const twoDigitYear = match[1];
+      const year = Number(twoDigitYear);
+      const century = year >= 70 ? 1900 : 2000; // bias toward modern dates
+      return century + year;
+    }
+
+    function normalizeDate(value, fallbackYear) {
+      if (!value) return '';
+      const trimmed = value.trim();
+      const match = trimmed.match(/^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?/);
+      if (!match) return trimmed;
+      const day = match[1].padStart(2, '0');
+      const month = match[2].padStart(2, '0');
+      let year = match[3];
+      if (!year && fallbackYear) {
+        year = String(fallbackYear);
+      } else if (year && year.length === 2) {
+        year = String(Number(year) >= 70 ? 1900 + Number(year) : 2000 + Number(year));
+      }
+      return [day, month, year].filter(Boolean).join('.');
+    }
+
+    function normalizeDuration(value) {
+      if (!value) return '';
+      const compact = value.replace(/\s+/g, '');
+      const match = compact.match(/^(\d+)h(\d{1,2})$/i);
+      if (match) {
+        const hours = match[1];
+        const minutes = match[2].padStart(2, '0');
+        return `${hours}:${minutes}`;
+      }
+      return value.trim();
+    }
+
+    function sanitizeCellValue(value) {
+      if (!value) return '';
+      return value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
+    }
+
+    function parseCustomRows(lines) {
+      const yearHint = parsePeriodYear(lines);
+      const records = [];
+
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        if (!/^S\d+\s*\|/i.test(line)) continue;
+
+        const mainParts = line
+          .split('|')
+          .map((part) => part.trim())
+          .filter((part) => part.length > 0);
+
+        const detailLine = lines[i + 1] && lines[i + 1].includes('|') ? lines[i + 1] : '';
+        const detailParts = detailLine
+          .replace(/^[_\s]+/, '')
+          .split('|')
+          .map((part) => part.trim())
+          .filter((part) => part.length > 0);
+
+        const [week, workOrder, type, number, description, plannedDate, plannedDuration] = mainParts;
+        const [detailDate, priority, statusCode, controller, code, actualDate, actualDuration, downtime] = detailParts;
+
+        const weekValue = (week || '').replace(/^S\s*/i, '').trim();
+        const descriptionWithCode = [description, code].filter(Boolean).join(' | ');
+        const priorityValue = priority || statusCode || '';
+        const status = statusCode && !/^\d+$/.test(statusCode) ? statusCode : 'YAPILDI';
+        const date = actualDate || detailDate || plannedDate || '';
+        const duration = normalizeDuration(actualDuration || plannedDuration || downtime);
+
+        records.push({
+          week: sanitizeCellValue(weekValue),
+          workOrder: sanitizeCellValue(workOrder || ''),
+          type: sanitizeCellValue(type || ''),
+          number: sanitizeCellValue(number || ''),
+          description: sanitizeCellValue(descriptionWithCode || ''),
+          priority: sanitizeCellValue(priorityValue),
+          date: sanitizeCellValue(date),
+          duration: sanitizeCellValue(duration),
+          status: sanitizeCellValue(status),
+        });
+
+        if (detailLine) {
+          i += 1;
+        }
+      }
+
+      return records;
+    }
+
+    async function extractPages(arrayBuffer) {
+      const pdfjs = await loadPdfJs();
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      const pages = [];
+
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        pages.push(groupItemsIntoLines(content.items));
+      }
+
+      return pages;
+    }
+
+    async function buildWorkbook(pages) {
+      const workbook = new ExcelJS.Workbook();
+      pages.forEach((lines, index) => {
+        const sheet = workbook.addWorksheet(`Page ${index + 1}`);
+        const customRows = parseCustomRows(lines);
+
+        if (customRows.length) {
+          sheet.columns = [
+            { header: 'S.NO', key: 'sno', width: 8 },
+            { header: 'HAFTA', key: 'week', width: 10 },
+            { header: 'İŞ EMRİ NO', key: 'workOrder', width: 15 },
+            { header: 'TİP', key: 'type', width: 8 },
+            { header: 'NO', key: 'number', width: 12 },
+            { header: 'TANIM', key: 'description', width: 60 },
+            { header: 'ÖNCELİK DURUMU', key: 'priority', width: 18 },
+            { header: 'TARİH', key: 'date', width: 14 },
+            { header: 'SÜRE', key: 'duration', width: 12 },
+            { header: 'DURUM', key: 'status', width: 14 },
+          ];
+
+          customRows.forEach((row, rowIndex) => {
+            sheet.addRow({
+              sno: rowIndex + 1,
+              week: row.week,
+              workOrder: row.workOrder,
+              type: row.type,
+              number: row.number,
+              description: row.description,
+              priority: row.priority,
+              date: row.date,
+              duration: row.duration,
+              status: row.status,
+            });
+          });
+
+          sheet.getRow(1).font = { bold: true };
+          sheet.columns.forEach((column) => {
+            column.alignment = { vertical: 'middle', wrapText: true };
+          });
+        } else {
+          sheet.columns = [{ header: 'Content', key: 'content', width: 120 }];
+          lines.forEach((line) => {
+            const row = sheet.addRow({ content: sanitizeCellValue(line || ' ') });
+            row.getCell(1).font = { name: 'Consolas', family: 2, size: 11 };
+            row.alignment = { vertical: 'top', wrapText: true };
+          });
+        }
+      });
+      return workbook.xlsx.writeBuffer();
+    }
+
+    async function handleConvert() {
+      setStatus('');
+      const file = pdfInput.files?.[0];
+      if (!file) {
+        setStatus('Please choose a PDF file first.', true);
+        return;
+      }
+
+      try {
+        setStatus('Reading PDF...');
+        const arrayBuffer = await file.arrayBuffer();
+        setStatus('Parsing pages...');
+        const pages = await extractPages(arrayBuffer);
+        setStatus('Building Excel file...');
+        const excelBuffer = await buildWorkbook(pages);
+
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = file.name.replace(/\.pdf$/i, '') + '.xlsx';
+        anchor.click();
+        URL.revokeObjectURL(url);
+        setStatus('Conversion complete! Your download should start automatically.');
+      } catch (error) {
+        console.error(error);
+        setStatus(error.message || 'Conversion failed. Please try again.', true);
+      }
+    }
+
+    convertBtn.addEventListener('click', () => {
+      if (typeof window.FileReader === 'undefined') {
+        setStatus('Your browser does not support file reading. Please try a modern browser.', true);
+        return;
+      }
+      handleConvert();
+    });
+  </script>
+</body>
+</html>
