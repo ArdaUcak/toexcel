@@ -155,7 +155,7 @@ function parseCustomRows(lines) {
     const weekValue = (week || '').replace(/^S\s*/i, '').trim();
     const descriptionWithCode = [description, code].filter(Boolean).join(' | ');
     const priorityValue = priority || statusCode || '';
-    const status = statusCode && !/^\d+$/.test(statusCode) ? statusCode : 'YAPILDI';
+    const status = '';
     const date = actualDate || detailDate || plannedDate || '';
     const duration = normalizeDuration(actualDuration || plannedDuration || downtime);
 
