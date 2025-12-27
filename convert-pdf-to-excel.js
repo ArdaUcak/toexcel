@@ -156,7 +156,7 @@ function parseCustomRows(lines) {
     const descriptionWithCode = [description, code].filter(Boolean).join(' | ');
     const priorityValue = priority || statusCode || '';
     const status = statusCode && !/^\d+$/.test(statusCode) ? statusCode : 'YAPILDI';
-    const date = normalizeDate(actualDate || detailDate || plannedDate, yearHint);
+    const date = actualDate || detailDate || plannedDate || '';
     const duration = normalizeDuration(actualDuration || plannedDuration || downtime);
 
     records.push({
