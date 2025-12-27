@@ -145,22 +145,25 @@ function parseCustomRows(lines) {
       .filter((part) => part.length > 0);
 
     const [week, workOrder, type, number, description, plannedDate, plannedDuration] = mainParts;
-    const [detailDate, priority, status, controller, code, actualDate, actualDuration, downtime] = detailParts;
+    const [detailDate, priority, statusCode, controller, code, actualDate, actualDuration, downtime] = detailParts;
 
-    const combinedPriority = [priority, status].filter(Boolean).join(' / ');
+    const weekValue = (week || '').replace(/^S\s*/i, '').trim();
     const descriptionWithCode = [description, code].filter(Boolean).join(' | ');
+    const priorityValue = priority || statusCode || '';
+    const status = statusCode && !/^\d+$/.test(statusCode) ? statusCode : 'YAPILDI';
     const date = normalizeDate(actualDate || detailDate || plannedDate, yearHint);
-    const duration = normalizeDuration(downtime || actualDuration || plannedDuration);
+    const duration = normalizeDuration(actualDuration || plannedDuration || downtime);
 
     records.push({
-      week: week || '',
+      week: weekValue,
       workOrder: workOrder || '',
       type: type || '',
       number: number || '',
       description: descriptionWithCode || '',
-      priority: combinedPriority || '',
+      priority: priorityValue,
       date,
       duration,
+      status,
     });
 
     if (detailLine) {
@@ -205,6 +208,7 @@ async function writeWorkbook(pages, outputPath) {
         { header: 'ÖNCELİK DURUMU', key: 'priority', width: 18 },
         { header: 'TARİH', key: 'date', width: 14 },
         { header: 'SÜRE', key: 'duration', width: 12 },
+        { header: 'DURUM', key: 'status', width: 14 },
       ];
 
       customRows.forEach((row, rowIndex) => {
@@ -218,6 +222,7 @@ async function writeWorkbook(pages, outputPath) {
           priority: row.priority,
           date: row.date,
           duration: row.duration,
+          status: row.status,
         });
       });
 

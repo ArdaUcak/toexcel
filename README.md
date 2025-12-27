@@ -15,12 +15,13 @@ followed by a second line of details), the converter will automatically map each
 sample Excel screenshot:
 
 - `S.NO` (auto-generated row number)
-- `HAFTA` (week, e.g., `S49`)
+- `HAFTA` (week, the leading `S` is removed; `S49` → `49`)
 - `İŞ EMRİ NO`, `TİP`, `NO`
 - `TANIM` (description plus any follow-up code)
-- `ÖNCELİK DURUMU` (combined priority/status values)
+- `ÖNCELİK DURUMU` (priority value, falling back to any status code when the priority cell is empty)
 - `TARİH` (normalized as `dd.MM.[yyyy]` when a year is present in the PDF header)
 - `SÜRE` (time values like `0h10` normalized to `0:10`)
+- `DURUM` (status text when present; otherwise defaults to `YAPILDI` as in the reference sheet)
 
 ## Node.js CLI
 If you prefer running the converter in Node.js, use the CLI script.
