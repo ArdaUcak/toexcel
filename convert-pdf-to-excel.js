@@ -124,6 +124,11 @@ function normalizeDuration(value) {
   return value.trim();
 }
 
+function sanitizeCellValue(value) {
+  if (!value) return '';
+  return value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
+}
+
 function parseCustomRows(lines) {
   const yearHint = parsePeriodYear(lines);
   const records = [];
@@ -155,15 +160,15 @@ function parseCustomRows(lines) {
     const duration = normalizeDuration(actualDuration || plannedDuration || downtime);
 
     records.push({
-      week: weekValue,
-      workOrder: workOrder || '',
-      type: type || '',
-      number: number || '',
-      description: descriptionWithCode || '',
-      priority: priorityValue,
-      date,
-      duration,
-      status,
+      week: sanitizeCellValue(weekValue),
+      workOrder: sanitizeCellValue(workOrder || ''),
+      type: sanitizeCellValue(type || ''),
+      number: sanitizeCellValue(number || ''),
+      description: sanitizeCellValue(descriptionWithCode || ''),
+      priority: sanitizeCellValue(priorityValue),
+      date: sanitizeCellValue(date),
+      duration: sanitizeCellValue(duration),
+      status: sanitizeCellValue(status),
     });
 
     if (detailLine) {
@@ -233,7 +238,7 @@ async function writeWorkbook(pages, outputPath) {
     } else {
       worksheet.columns = [{ header: 'Content', key: 'content', width: 120 }];
       lines.forEach((line) => {
-        const row = worksheet.addRow({ content: line || ' ' });
+        const row = worksheet.addRow({ content: sanitizeCellValue(line || ' ') });
         row.getCell(1).font = { name: 'Consolas', family: 2, size: 11 };
         row.alignment = { vertical: 'top', wrapText: true };
       });
