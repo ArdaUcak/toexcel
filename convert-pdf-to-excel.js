@@ -165,7 +165,7 @@ function parseCustomRows(lines) {
     const priorityValue = priority || statusCode || '';
     const status = '';
     const date = actualDate || detailDate || plannedDate || '';
-    const duration = normalizeDuration(actualDuration || plannedDuration || downtime);
+    const duration = normalizeDuration(plannedDuration || actualDuration || downtime);
 
     records.push({
       week: sanitizeCellValue(weekValue),
